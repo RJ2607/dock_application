@@ -12,27 +12,39 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: Colors.grey[200],
         body: Center(
-          child: Dock(
-            items: [
-              Icons.person,
-              Icons.message,
-              Icons.call,
-              Icons.camera,
-              Icons.photo,
-            ],
-            builder: (e) => Container(
-              width: 48,
-              height: 48,
-              child: Icon(e, color: Colors.white),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.black26,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Press and hold an item for 2 seconds to drag it to another position.',
               ),
-            ),
+              SizedBox(height: 16),
+              Dock(
+                items: const [
+                  Icons.person,
+                  Icons.message,
+                  Icons.call,
+                  Icons.camera,
+                  Icons.photo,
+                ],
+                builder: (e) {
+                  return Container(
+                    constraints: const BoxConstraints(minWidth: 48),
+                    height: 48,
+                    margin: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors
+                          .primaries[e.hashCode % Colors.primaries.length],
+                    ),
+                    child: Center(child: Icon(e, color: Colors.white)),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -40,7 +52,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-/// Dock of the reorderable [items] with drag and drop functionality.
+/// Dock of the reorderable [items].
 class Dock<T> extends StatefulWidget {
   const Dock({
     super.key,
@@ -58,13 +70,12 @@ class Dock<T> extends StatefulWidget {
   State<Dock<T>> createState() => _DockState<T>();
 }
 
-/// State of the [Dock] used to manipulate and reorder the [_items].
+/// State of the [Dock] used to manipulate the [_items].
 class _DockState<T> extends State<Dock<T>> {
   /// [T] items being manipulated.
-  late List<T> _items = widget.items.toList();
+  late final List<T> _items = widget.items.toList();
 
-  /// Currently dragged item.
-  int? _draggingIndex;
+  int? _draggedIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -73,60 +84,54 @@ class _DockState<T> extends State<Dock<T>> {
         borderRadius: BorderRadius.circular(8),
         color: Colors.black12,
       ),
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(4),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(_items.length, (index) {
-          return LongPressDraggable<int>(
-            data: index,
-            axis: Axis.horizontal,
-            feedback: Material(
-              color: Colors.transparent,
-              child: widget.builder(_items[index]),
-            ),
-            childWhenDragging: Opacity(
-              opacity: 0.3,
-              child: _buildDockItem(index),
-            ),
-            onDragStarted: () => setState(() {
-              _draggingIndex = index;
-            }),
-            onDraggableCanceled: (_, __) => setState(() {
-              _draggingIndex = null;
-            }),
-            onDragCompleted: () => setState(() {
-              _draggingIndex = null;
-            }),
-            child: _buildDockItem(index),
-          );
-        }),
-      ),
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(_items.length, (i) {
+            return LongPressDraggable(
+              child: _buildDockItem(i),
+              feedback: Material(
+                child: widget.builder(_items[i]),
+                color: Colors.transparent,
+              ),
+              childWhenDragging:
+                  Opacity(opacity: 0.3, child: _buildDockItem(i)),
+              data: i,
+              axis: Axis.horizontal,
+              onDragCompleted: () {
+                setState(() {
+                  _draggedIndex = null; // Reset the dragged index.
+                });
+              },
+              onDragStarted: () => setState(() {
+                _draggedIndex = i; // Set the dragged index.
+              }),
+              onDraggableCanceled: (_, __) => setState(() {
+                _draggedIndex = null; // Reset the dragged index.
+              }),
+            );
+          })),
     );
   }
 
-  /// Builds an individual dock item wrapped with [DragTarget] for receiving reorderable item.
-  Widget _buildDockItem(int index) {
+/**
+ * Builds a dock item at the given index.
+ * @param i The index of the item to build.
+ * @return The built dock item.
+ */
+  Widget _buildDockItem(int i) {
     return DragTarget<int>(
-      onAccept: (fromIndex) {
-        setState(() {
-          final item = _items.removeAt(fromIndex);
-          _items.insert(index, item);
+        onAccept: (int index) {
+          setState(() {
+            final item =
+                _items.removeAt(index); // Remove the item from the old index.
+            _items.insert(i, item); // Insert the item at the new index.
+          });
+        },
+        onWillAccept: (fromIndex) =>
+            fromIndex != i, // Prevent the item from being dropped on itself.
+        builder: (context, candidateData, rejectedData) {
+          return widget.builder(_items[i]); // Build the dock item.
         });
-      },
-      onWillAccept: (fromIndex) => fromIndex != index,
-      builder: (context, candidateData, rejectedData) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          constraints: const BoxConstraints(minWidth: 48),
-          height: 48,
-          margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.primaries[index % Colors.primaries.length],
-          ),
-          child: Center(child: widget.builder(_items[index])),
-        );
-      },
-    );
   }
 }
