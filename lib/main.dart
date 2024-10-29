@@ -4,6 +4,7 @@ void main() {
   runApp(const MyApp());
 }
 
+/// Main application widget.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -28,7 +29,7 @@ class MyApp extends StatelessWidget {
                   Icons.camera,
                   Icons.photo,
                 ],
-                builder: (e) {
+                builder: (icon) {
                   return Container(
                     constraints: const BoxConstraints(minWidth: 48),
                     height: 48,
@@ -36,9 +37,9 @@ class MyApp extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
                       color: Colors
-                          .primaries[e.hashCode % Colors.primaries.length],
+                          .primaries[icon.hashCode % Colors.primaries.length],
                     ),
-                    child: Center(child: Icon(e, color: Colors.white)),
+                    child: Center(child: Icon(icon, color: Colors.white)),
                   );
                 },
               ),
@@ -50,14 +51,19 @@ class MyApp extends StatelessWidget {
   }
 }
 
+/// A widget that displays a customizable dock with draggable icons.
 class Dock<T> extends StatefulWidget {
+  /// Creates a dock widget with a list of items and a builder for each item.
   const Dock({
     super.key,
-    this.items = const [],
+    required this.items,
     required this.builder,
   });
 
+  /// List of items to display in the dock.
   final List<T> items;
+
+  /// Builder function to customize the appearance of each item.
   final Widget Function(T) builder;
 
   @override
@@ -65,17 +71,26 @@ class Dock<T> extends StatefulWidget {
 }
 
 class _DockState<T> extends State<Dock<T>> {
+  /// Local copy of the dock items to modify during drag and drop.
   late final List<T> _items = widget.items.toList();
-  bool _isDragging = false;
-  Widget? _draggedItem;
+
+  /// Index of the item currently being dragged, if any.
   int? _draggedIndex;
-  int _hoverIndex = -1; // Initialize to -1 to avoid null checks.
+
+  /// Index of the position where the dragged item is currently hovering.
+  int _hoverIndex = -1;
+
+  /// Whether the dragged item is outside the dock area.
+  bool _isDraggedOutside = false;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: Container(
+      child: AnimatedContainer(
+        duration:
+            const Duration(milliseconds: 5), // Adjusted for smooth animation
+        curve: Curves.easeInOut,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           color: Colors.black12,
@@ -83,17 +98,17 @@ class _DockState<T> extends State<Dock<T>> {
         padding: const EdgeInsets.all(4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: List.generate(_items.length + 1, (i) {
-            if (_hoverIndex == i) {
-              return const SizedBox(
-                width: 60,
-                height: 48,
-              );
+          children:
+              List.generate(_items.length + (_hoverIndex != -1 ? 1 : 0), (i) {
+            // Display a space when an item is hovering over a position.
+            if (_hoverIndex == i && !_isDraggedOutside) {
+              return const SizedBox(width: 60, height: 48);
             }
+
+            // Adjust index for hover state to insert gap appropriately.
             final adjustedIndex =
                 i > _hoverIndex && _hoverIndex != -1 ? i - 1 : i;
-            if (adjustedIndex >= _items.length)
-              return const SizedBox.shrink(); // Avoid out-of-range
+            if (adjustedIndex >= _items.length) return const SizedBox.shrink();
 
             return _buildDockItem(adjustedIndex);
           }),
@@ -102,30 +117,30 @@ class _DockState<T> extends State<Dock<T>> {
     );
   }
 
+  /// Builds a draggable and droppable dock item at the specified index.
   Widget _buildDockItem(int i) {
     return DragTarget<int>(
-      onAccept: (int index) {
+      onAccept: (int fromIndex) {
         setState(() {
-          _isDragging = false;
-          final item = _items.removeAt(index);
+          _isDraggedOutside = false;
+          final item = _items.removeAt(fromIndex);
           _items.insert(i, item);
+          _draggedIndex = null;
           _hoverIndex = -1;
         });
       },
       onWillAccept: (fromIndex) {
         setState(() {
           if (fromIndex != i) _hoverIndex = i;
+          _isDraggedOutside = false;
         });
-        return fromIndex != i;
+        return true;
       },
-      onLeave: (index) {
+      onLeave: (fromIndex) {
         setState(() {
-          if (index != null && _isDragging == false) {
-            _isDragging = true;
-
-            _draggedItem = _items.removeAt(index);
+          if (fromIndex != null) {
+            _hoverIndex = -1;
           }
-          _hoverIndex = -1;
         });
       },
       builder: (context, candidateData, rejectedData) {
@@ -137,15 +152,25 @@ class _DockState<T> extends State<Dock<T>> {
             color: Colors.transparent,
           ),
           childWhenDragging: const SizedBox.shrink(),
-          onDragStarted: () => setState(() => _draggedIndex = i),
-          onDraggableCanceled: (_, __) => setState(() {
-            _draggedIndex = null;
-            _hoverIndex = -1;
-          }),
-          onDragCompleted: () => setState(() {
-            _draggedIndex = null;
-            _hoverIndex = -1;
-          }),
+          onDragStarted: () {
+            setState(() {
+              _draggedIndex = i;
+            });
+          },
+          onDraggableCanceled: (_, __) {
+            setState(() {
+              _draggedIndex = null;
+              _hoverIndex = -1;
+              _isDraggedOutside = false;
+            });
+          },
+          onDragCompleted: () {
+            setState(() {
+              _draggedIndex = null;
+              _hoverIndex = -1;
+              _isDraggedOutside = false;
+            });
+          },
           child: widget.builder(_items[i]),
         );
       },
