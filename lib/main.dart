@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 
 /// Entrypoint of the application.
@@ -22,13 +24,13 @@ class MyApp extends StatelessWidget {
                 'Press and hold an item for 2 seconds to drag it to another position.',
               ),
               SizedBox(height: 16),
-              Dock(
+              Dock<Widget>(
                 items: const [
-                  Icons.person,
-                  Icons.message,
-                  Icons.call,
-                  Icons.camera,
-                  Icons.photo,
+                  Center(child: Icon(Icons.person, color: Colors.white)),
+                  Center(child: Icon(Icons.message, color: Colors.white)),
+                  Center(child: Icon(Icons.call, color: Colors.white)),
+                  Center(child: Icon(Icons.camera, color: Colors.white)),
+                  Center(child: Icon(Icons.photo, color: Colors.white)),
                 ],
                 builder: (e) {
                   return Container(
@@ -40,7 +42,7 @@ class MyApp extends StatelessWidget {
                       color: Colors
                           .primaries[e.hashCode % Colors.primaries.length],
                     ),
-                    child: Center(child: Icon(e, color: Colors.white)),
+                    child: e,
                   );
                 },
               ),
@@ -76,10 +78,13 @@ class _DockState<T> extends State<Dock<T>> {
   late final List<T> _items = widget.items.toList();
 
   int? _draggedIndex;
+  int? _hoveredIndex;
+  final key = UniqueKey();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         color: Colors.black12,
@@ -95,9 +100,9 @@ class _DockState<T> extends State<Dock<T>> {
                 color: Colors.transparent,
               ),
               childWhenDragging:
-                  Opacity(opacity: 0.3, child: _buildDockItem(i)),
+                  SizedBox.shrink(), //Hide the dock item when dragging.
+
               data: i,
-              axis: Axis.horizontal,
               onDragCompleted: () {
                 setState(() {
                   _draggedIndex = null; // Reset the dragged index.
@@ -105,9 +110,11 @@ class _DockState<T> extends State<Dock<T>> {
               },
               onDragStarted: () => setState(() {
                 _draggedIndex = i; // Set the dragged index.
+                _hoveredIndex = null; // Reset the hovered index.
               }),
               onDraggableCanceled: (_, __) => setState(() {
                 _draggedIndex = null; // Reset the dragged index.
+                _hoveredIndex = null; // Reset the hovered index.
               }),
             );
           })),
@@ -128,10 +135,38 @@ class _DockState<T> extends State<Dock<T>> {
             _items.insert(i, item); // Insert the item at the new index.
           });
         },
+        onMove: (details) {
+          setState(() {
+            _hoveredIndex = i; // Set the hovered index.
+          });
+        },
         onWillAccept: (fromIndex) =>
             fromIndex != i, // Prevent the item from being dropped on itself.
+        onLeave: (details) {
+          setState(() {
+            _hoveredIndex = null; // Reset the hovered index.
+          });
+        },
         builder: (context, candidateData, rejectedData) {
-          return widget.builder(_items[i]); // Build the dock item.
+          final con = Container(
+            key: key,
+            padding: const EdgeInsets.all(4),
+            child: Icon(Icons.add, color: Colors.transparent),
+            color: Colors.transparent,
+          );
+          log(_hoveredIndex.toString());
+          if (_draggedIndex == i) {
+            return const SizedBox.shrink(); // Hide the dock item when dragging.
+          }
+          if (_hoveredIndex == i && _hoveredIndex != null) {
+            _items.contains(con as T)
+                ? _items.removeAt(i)
+                : _items.insert(
+                    _hoveredIndex!, con as T); // Reset the hovered index.
+            return widget.builder(_items[i]);
+          } else {
+            return widget.builder(_items[i]);
+          }
         });
   }
 }
